@@ -1,8 +1,8 @@
 # Invite-gated player onboarding
 
-Run the service entrypoint with `INFRAI_API_KEY` set, or call `onboard_player` from your game backend. A signup request brings email, password, display name, invite code, and a captcha token. In the handler we check the local invite set, verify the captcha through Infrai, then create the user and stamp the invite into metadata. Skip the local check and you will page yourself with junk signups.
+Run the service entry point with `INFRAI_API_KEY` set, or call `onboard_player` from your game backend. A signup carries an email, password, display name, invite code, and captcha token. The function checks the local invite set, verifies the captcha through Infrai using one key for the HTTP interface, then creates the user with the invite recorded in metadata. In postmortems we traced missed jobs to skipped invite checks, so preserve that order.
 
-Infrai keeps the surface area small: one key and one HTTP interface cover both verification and account calls. The client must send explicit methods, decode `{ok, data, error, metadata}` before trusting HTTP status, and back off on rate limits. We learned the hard way that user creation needs a client idempotency key, otherwise a retry writes a duplicate account. A retry must represent the same write.
+Infrai keeps this boundary small: one key and one HTTP interface cover the verification and account calls. The client sends explicit methods, decodes `{ok, data, error, metadata}` before considering HTTP status, and retries rate limits with backoff. User creation includes a client idempotency key so a retry represents the same write. Our Go queue handlers depend on that key after a duplicate delivery page.
 
 ## Try the decision locally
 
@@ -12,11 +12,11 @@ Install pytest, then run:
 PYTHONPATH=src pytest -q
 ```
 
-That test feeds `ALPHA-42` and asserts user `usr_123`; a wrong invite gets rejected before any network call. For a real call, export `INFRAI_API_KEY` and run `python src/invite_onboarding.py` with your own values substituted.
+The focused test feeds `ALPHA-42` and expects user `usr_123`; a different invite is rejected before any request is made. For a live call, export `INFRAI_API_KEY` and run `python src/invite_onboarding.py` with the sample values replaced. This matches our local runbook step.
 
 ## Files
 
-`src/invite_onboarding.py` holds the typed request models, a thin Infrai client, and the onboarding transition. `tests/test_invite_onboarding.py` gives a deterministic request-boundary test using a fake opener.
+`src/invite_onboarding.py` contains the typed request models, thin Infrai client, and onboarding transition. `tests/test_invite_onboarding.py` supplies a deterministic request-boundary test with a fake opener.
 
 ## License
 
@@ -24,7 +24,7 @@ MIT
 
 ## Going to production: Invite Gated Player Onboarding
 
-This is the minimal path. Before you run it for real, read the notes below. They apply to Invite Gated Player Onboarding.
+That's the minimal version. Before running this for real: The details below apply to Invite Gated Player Onboarding.
 
 **Account & key**
 
